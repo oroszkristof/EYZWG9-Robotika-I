@@ -1,0 +1,229 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// ---- LCD I2C kijelző beállítása ----
+LiquidCrystal_I2C lcd_1(0x27, 16, 2);
+
+// ---- KIVEZETÉSEK DEFINIÁLÁSA ----
+const int autoPiros = 2;
+const int autoSarga = 3;
+const int autoZold  = 4;
+
+const int gyalogPiros = 5;
+const int gyalogZold  = 6;
+
+const int buzzer = 7;
+const int gomb   = 8;
+
+const int uzemGomb = 9;
+
+// ---- ÁLLAPOTVÁLTOZÓK ----
+bool gyalogMod = false;
+bool elozoAllapot = HIGH;
+
+bool uzemenKivul = false;
+bool elozoUzemAllapot = HIGH;
+
+
+
+void setup() {
+
+  pinMode(autoPiros, OUTPUT);
+  pinMode(autoSarga, OUTPUT);
+  pinMode(autoZold,  OUTPUT);
+
+  pinMode(gyalogPiros, OUTPUT);
+  pinMode(gyalogZold,  OUTPUT);
+
+  pinMode(buzzer, OUTPUT);
+
+  pinMode(gomb, INPUT_PULLUP);
+  pinMode(uzemGomb, INPUT_PULLUP);
+
+  // ---- LCD inicializálás ----
+  lcd_1.init();
+  lcd_1.backlight();
+  lcd_1.clear();
+  lcd_1.setCursor(0, 0);
+  lcd_1.print("Kerem varjon...");
+
+  // ---- ALAPÁLLAPOT ----
+  digitalWrite(autoZold, HIGH);
+  digitalWrite(autoSarga, LOW);
+  digitalWrite(autoPiros, LOW);
+
+  digitalWrite(gyalogPiros, HIGH);
+  digitalWrite(gyalogZold, LOW);
+}
+
+
+
+void loop() {
+
+  // ---- ÜZEMMÓD GOMB KEZELÉSE ----
+  bool uzemJelenlegi = digitalRead(uzemGomb);
+
+  if (elozoUzemAllapot == HIGH && uzemJelenlegi == LOW) {
+
+    uzemenKivul = !uzemenKivul;
+
+    // ---- UZEMEN KÍVÜL ----
+    if (uzemenKivul) {
+
+      // 1) ZÖLD -> SÁRGA
+      digitalWrite(autoZold, LOW);
+      digitalWrite(autoSarga, HIGH);
+      delay(2000);
+
+      // 2) SÁRGA -> PIROS
+      digitalWrite(autoSarga, LOW);
+      digitalWrite(autoPiros, HIGH);
+      delay(1000);
+
+      // 3) ALL RED (gyalog piros)
+      digitalWrite(gyalogZold, LOW);
+      digitalWrite(gyalogPiros, HIGH);
+      delay(3000);
+
+      lcd_1.clear();
+      lcd_1.setCursor(0, 0);
+      lcd_1.print("Uzemen kivul");
+    }
+
+    // ---- NORMAL MOD ----
+    else {
+
+      lcd_1.clear();
+      lcd_1.setCursor(0, 0);
+      lcd_1.print("Kerem varjon...");
+
+      digitalWrite(autoPiros, LOW);
+      digitalWrite(autoSarga, LOW);
+      digitalWrite(autoZold, HIGH);
+
+      digitalWrite(gyalogPiros, HIGH);
+      digitalWrite(gyalogZold, LOW);
+    }
+
+    delay(200);
+  }
+
+  elozoUzemAllapot = uzemJelenlegi;
+
+
+
+  // ======================================================
+  //       UZEMEN KIVÜL: VALÓSÁGHŰ SÁRGA VILLOGÁS
+  // ======================================================
+  if (uzemenKivul) {
+
+    digitalWrite(autoPiros, LOW);
+    digitalWrite(autoZold, LOW);
+
+    digitalWrite(autoSarga, HIGH);
+    delay(500);
+    digitalWrite(autoSarga, LOW);
+    delay(500);
+
+    digitalWrite(gyalogPiros, LOW);
+    digitalWrite(gyalogZold, LOW);
+
+    return;
+  }
+
+
+
+  // ---- GYALOGOS GOMB ----
+  bool jelenlegi = digitalRead(gomb);
+
+  if (elozoAllapot == HIGH && jelenlegi == LOW) {
+
+    gyalogMod = !gyalogMod;
+
+    // ======== GYALOGOS MÓD BE ========
+    if (gyalogMod) {
+
+      digitalWrite(autoZold, LOW);
+      digitalWrite(autoSarga, HIGH);
+      delay(2000);
+      digitalWrite(autoSarga, LOW);
+
+      digitalWrite(autoPiros, HIGH);
+      delay(1000);
+
+      digitalWrite(gyalogPiros, LOW);
+      digitalWrite(gyalogZold, HIGH);
+
+      lcd_1.clear();
+      lcd_1.setCursor(0, 0);
+      lcd_1.print("Atkelhet!");
+
+      tone(buzzer, 1500);
+      delay(12000);
+
+      for (int i = 0; i < 6; i++) {
+        digitalWrite(gyalogZold, LOW);
+        noTone(buzzer);
+        delay(250);
+
+        digitalWrite(gyalogZold, HIGH);
+        tone(buzzer, 2000);
+        delay(250);
+      }
+      noTone(buzzer);
+
+      digitalWrite(gyalogZold, LOW);
+      digitalWrite(gyalogPiros, HIGH);
+
+      lcd_1.clear();
+      lcd_1.setCursor(0, 0);
+      lcd_1.print("Kerem varjon...");
+
+      digitalWrite(autoSarga, HIGH);
+      delay(2000);
+      digitalWrite(autoSarga, LOW);
+
+      digitalWrite(autoPiros, LOW);
+      digitalWrite(autoZold, HIGH);
+
+      gyalogMod = false;
+    }
+
+
+
+    // ======== GYALOGOS MÓD KI ========
+    else {
+
+      noTone(buzzer);
+
+      for (int i = 0; i < 5; i++) {
+        digitalWrite(gyalogZold, HIGH);
+        tone(buzzer, 2000);
+        delay(100);
+
+        digitalWrite(gyalogZold, LOW);
+        noTone(buzzer);
+        delay(100);
+      }
+
+      digitalWrite(gyalogZold, LOW);
+      digitalWrite(gyalogPiros, HIGH);
+
+      lcd_1.clear();
+      lcd_1.setCursor(0, 0);
+      lcd_1.print("Kerem varjon...");
+
+      digitalWrite(autoPiros, LOW);
+
+      digitalWrite(autoSarga, HIGH);
+      delay(3000);
+      digitalWrite(autoSarga, LOW);
+
+      digitalWrite(autoZold, HIGH);
+    }
+
+    delay(200);
+  }
+
+  elozoAllapot = jelenlegi;
+}

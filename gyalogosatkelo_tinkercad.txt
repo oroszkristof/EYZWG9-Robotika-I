@@ -1,0 +1,213 @@
+#include <Wire.h>
+#include <Adafruit_LiquidCrystal.h>
+
+Adafruit_LiquidCrystal lcd_1(0);  // I2C LCD inicializálása
+
+
+// ---- KIVEZETÉSEK ----
+const int autoPiros = 2;   // Autó piros LED
+const int autoSarga = 3;   // Autó sárga LED
+const int autoZold  = 4;   // Autó zöld LED
+
+const int gyalogPiros = 5; // Gyalog piros LED
+const int gyalogZold  = 6; // Gyalog zöld LED
+
+const int buzzer = 7;      // Buzzer
+const int gomb   = 8;      // Gyalog gomb
+const int uzemGomb = 9;    // Üzemmód gomb
+
+
+// ---- ÁLLAPOTOK ----
+bool gyalogMod = false;
+bool elozoAllapot = HIGH;
+bool uzemenKivul = false;
+bool elozoUzemAllapot = HIGH;
+
+
+void setup() {
+
+  // LED-ek kimenetre állítása
+  pinMode(autoPiros, OUTPUT);
+  pinMode(autoSarga, OUTPUT);
+  pinMode(autoZold, OUTPUT);
+  pinMode(gyalogPiros, OUTPUT);
+  pinMode(gyalogZold, OUTPUT);
+
+  pinMode(buzzer, OUTPUT);        // Buzzer
+  pinMode(gomb, INPUT_PULLUP);    // Gyalog gomb
+  pinMode(uzemGomb, INPUT_PULLUP);// Üzemmód gomb
+
+  lcd_1.begin(16, 2);             // LCD indítása
+  lcd_1.setBacklight(HIGH);       // Háttérvilágítás
+
+  lcd_1.print("Kerem varjon..."); // Kezdő üzenet
+
+  // Alapállapot: autó zöld, gyalog piros
+  digitalWrite(autoZold, HIGH);
+  digitalWrite(gyalogPiros, HIGH);
+}
+
+
+
+void loop() {
+
+  bool uzemJelenlegi = digitalRead(uzemGomb);   // Üzem gomb olvasása
+
+  // --- Üzemen kívül mód kapcsolása ---
+  if (elozoUzemAllapot == HIGH && uzemJelenlegi == LOW) {
+
+    uzemenKivul = !uzemenKivul;  // Állapotváltás
+
+    if (uzemenKivul) {
+
+      // Zöld → Sárga
+      digitalWrite(autoZold, LOW);
+      digitalWrite(autoSarga, HIGH);
+      delay(2000);
+
+      // Sárga → Piros
+      digitalWrite(autoSarga, LOW);
+      digitalWrite(autoPiros, HIGH);
+      delay(1000);
+
+      // All-red (kereszteződés kiürül)
+      digitalWrite(gyalogZold, LOW);
+      digitalWrite(gyalogPiros, HIGH);
+      delay(3000);
+
+      lcd_1.clear();
+      lcd_1.print("Uzemen kivul");  // LCD kijelzés
+    }
+
+    else {
+      lcd_1.clear();
+      lcd_1.print("Kerem varjon..."); // Normál mód kiírás
+
+      // Vissza normál állapotba
+      digitalWrite(autoPiros, LOW);
+      digitalWrite(autoZold, HIGH);
+      digitalWrite(gyalogPiros, HIGH);
+      digitalWrite(gyalogZold, LOW);
+    }
+
+    delay(200);  // Pergésgátlás
+  }
+
+  elozoUzemAllapot = uzemJelenlegi;
+
+
+  // --- Üzemen kívül: sárga villogás ---
+  if (uzemenKivul) {
+
+    digitalWrite(autoPiros, LOW); // Piros lekapcsolva
+    digitalWrite(autoZold, LOW);  // Zöld lekapcsolva
+
+    digitalWrite(autoSarga, HIGH); // Sárga villogás
+    delay(500);
+    digitalWrite(autoSarga, LOW);
+    delay(500);
+
+    digitalWrite(gyalogPiros, LOW); // Gyalog lámpák sötétek
+    digitalWrite(gyalogZold, LOW);
+
+    return; // Normál működés nem fut ilyenkor
+  }
+
+
+
+  bool jelenlegi = digitalRead(gomb);  // Gyalog gomb olvasása
+
+  // --- Gyalog gomb élérzékelése ---
+  if (elozoAllapot == HIGH && jelenlegi == LOW) {
+
+    gyalogMod = !gyalogMod;  // Gyalog mód váltás
+
+
+    // --- Gyalog mód indul ---
+    if (gyalogMod) {
+
+      // Autó: zöld → sárga → piros
+      digitalWrite(autoZold, LOW);
+      digitalWrite(autoSarga, HIGH);
+      delay(2000);
+      digitalWrite(autoSarga, LOW);
+      digitalWrite(autoPiros, HIGH);
+      delay(1000);
+
+      // Gyalog zöld
+      digitalWrite(gyalogPiros, LOW);
+      digitalWrite(gyalogZold, HIGH);
+
+      lcd_1.clear();
+      lcd_1.print("Atkelhet!");  // Gyalogos jelzés
+
+      tone(buzzer, 1500);        // Folyamatos hangjelzés
+      delay(12000);
+
+      // Végső villogás
+      for (int i = 0; i < 6; i++) {
+        digitalWrite(gyalogZold, LOW);
+        noTone(buzzer);
+        delay(250);
+
+        digitalWrite(gyalogZold, HIGH);
+        tone(buzzer, 2000);
+        delay(250);
+      }
+
+      noTone(buzzer);
+
+      // Gyalog vissza piros
+      digitalWrite(gyalogZold, LOW);
+      digitalWrite(gyalogPiros, HIGH);
+
+      lcd_1.clear();
+      lcd_1.print("Kerem varjon...");
+
+      // Autó: piros+sárga → zöld
+      digitalWrite(autoSarga, HIGH);
+      delay(2000);
+      digitalWrite(autoSarga, LOW);
+
+      digitalWrite(autoPiros, LOW);
+      digitalWrite(autoZold, HIGH);
+
+      gyalogMod = false; // Gyalog mód lezárása
+    }
+
+
+    // --- Gyalog mód megszakítása ---
+    else {
+
+      noTone(buzzer); // Hang lekapcsolása
+
+      // Rövid figyelmeztető villogás
+      for (int i = 0; i < 5; i++) {
+        digitalWrite(gyalogZold, HIGH);
+        tone(buzzer, 2000);
+        delay(100);
+
+        digitalWrite(gyalogZold, LOW);
+        noTone(buzzer);
+        delay(100);
+      }
+
+      digitalWrite(gyalogPiros, HIGH); // Gyalog piros
+
+      lcd_1.clear();
+      lcd_1.print("Kerem varjon...");
+
+      // Autó sárga → zöld
+      digitalWrite(autoPiros, LOW);
+      digitalWrite(autoSarga, HIGH);
+      delay(3000);
+      digitalWrite(autoSarga, LOW);
+
+      digitalWrite(autoZold, HIGH);
+    }
+
+    delay(200);
+  }
+
+  elozoAllapot = jelenlegi; // Gyalog gomb állapot frissítés
+}
